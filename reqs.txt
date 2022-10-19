@@ -1,0 +1,9 @@
+pip
+click
+validators
+rich
+appdirs
+crossref-commons
+sci-dl
+crossrefapi
+

@@ -9,12 +9,13 @@ logging.basicConfig( level=logging.DEBUG)
 rows = 100
 
 filter = {
-        'until-pub-date': "1476-01-01"
+        'from-pub-date': "2007",
+        'issn': "17586798"
         }
 
-queries = {}#{'query.title': 'meat'}
+queries = {'query.title': 'meat'}
 
-cachefile = "./refs_funded.json"
+cachefile = "./json/test.json"
 cache = []
 if os.path.exists(cachefile):
     with open(cachefile,"r") as f:

@@ -1,10 +1,12 @@
-from crossref_commons.iteration import iterate_publications_as_json
-from crossref_commons.relations import get_related
 from colorama                   import Fore, Back, Style
+from magic                      import Magic
 from time                       import sleep
-import json,csv,sys,os,linecache
+import json,csv,sys,os,linecache,PyPDF2 
 
-#cmd = "curl -X GET \"https://api.crossref.org/journals/{}/works?filter=from-pub-date%3A2007&query=meat&order=asc&sort=published\" -H 'User-Agent: ScienceWashing/0.1 (https://greenpeace.org; mailto:ycetinka@greenpeace.org) BasedOnScienceWashing/0.1' > json/journals/{}.json"
+mime = Magic(mime=True)
+langs = {}
+with open("./misc/iso639.json") as l:
+    langs = json.load(l)
 
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -15,9 +17,7 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals)
     print('{}{}:{}{} {}'.format(Fore.RED, filename.split("/")[-1], lineno, Style.RESET_ALL, exc_obj))
 
-
 def parse_journals(file):
-    payload = [["List","Rank","ISSN","Journal Title","Hits"]]
     papers = []
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
@@ -32,7 +32,6 @@ def parse_journals(file):
 
                 # check if results are cached
                 for issn in row[2].split(", "):
-                    #break # HACK
                     fn = "json/journals/{}-livestock.json".format(issn)
                     if os.path.exists(fn) and os.stat(fn).st_size > 1:
                         with open(fn) as i:
@@ -42,9 +41,24 @@ def parse_journals(file):
                                 print("{}Found cached: {}{} {}".format(Fore.GREEN,issn,Style.RESET_ALL,count))
                                 result_count += count
                                 succeeded = True
-                                payload.append([row[0],row[1],issn,row[3],count])
+
+
+                                # Analyse the thing here:
 
                                 for item in j:
+
+                                    journal = "_".join(str.lower(row[3]).split(" "))
+                                    title = "-".join(str.lower(item["DOI"]).split("/"))
+                                    pfn = f"./pdfs/{journal}/{title}.pdf"
+                                    num_pages = "-"
+                                    if os.path.exists(pfn) and os.stat(pfn).st_size > 1:
+                                        if mime.from_file(pfn) == "application/pdf":
+                                            sci_stat = "0: Downloaded"
+                                            num_pages = PyPDF2.PdfFileReader(open(pfn,"rb")).numPages
+                                        else:
+                                            sci_stat = "1: Not found"
+                                    else:
+                                        sci_stat = "2: DOI not reckoned"
 
                                     funders = " "
                                     if "funder" in list(item.keys()):
@@ -78,56 +92,50 @@ def parse_journals(file):
 
                                         authors = "\n".join(author)
 
+                                    licenses = " "
+                                    if "license" in list(item.keys()):
+                                        licenses = "\n".join([f"{str.upper(x['content-version'])} {x['start']['date-time'].split('T')[0]} ({x['URL']})" for x in item["license"]]),
+                                    lang = " "
+                                    if "language" in list(item.keys()):
+                                        lang = str.upper(item["language"])
                                     paper = {
                                                 "DOI": item["DOI"],
                                                 "Title": "\n".join([x for x in item["title"]]),
+                                                "Subject (Tags)": "\n".join([x for x in item["subject"]]),
                                                 "Authors": authors,
                                                 "Funders": funders,
+                                                "License": licenses,
                                                 "ISSN": issn,
                                                 "Journal": "\n".join([x for x in item["container-title"]]),
+                                                "Query match": "livestock",
+                                                "References": item["references-count"],
+                                                "Referenced": item["is-referenced-by-count"],
                                                 "Publisher": item["publisher"],
-                                                "Published": "-".join([str(x) for x in item["published"]["date-parts"][0]])
+                                                "Published": "-".join([str(x) for x in item["published"]["date-parts"][0]]),
+                                                "Language": lang,
+                                                "Sci-Hub Status": sci_stat,
+                                                "Pages": num_pages,
+                                                "Abstract": "",
+                                                "Conflict of Interest": ""
                                             }
+                                    jfn = f"grobid/{journal}/{title}.json"
+                                    if os.path.exists(jfn) and os.stat(jfn).st_size > 1:
+                                        with open(jfn) as ii:
+                                            jj = json.load(ii)
+                                            paper["Abstract"] = jj["abstract"]
+                                            coi = []
+                                            for para in jj["pdf_parse"]["back_matter"]:
+                                                coi.append(f"{para['section']}\n{para['text']}")
+                                            paper["Conflict of Interest"] = "\n\n".join(coi)
+
                                     papers.append(paper)
                             except:
                                 succeeded = False
                                 PrintException()
-
-                # try accessing results
-                for issn in row[2].split(", "):
-                    break
-                    fn = "json/journals/{}-livestock.json".format(issn)
-                    if os.path.exists(fn):
-                        succeeded = True
-                    print(issn)
-                    try:
-                        if not succeeded:
-                            sleep(1)
-                            f = {
-                                    'from-pub-date': "2007",
-                                    'issn': issn
-                                    }
-                            q = {'query.title': 'livestock'}
-                            cache = []
-                            res = iterate_publications_as_json(max_results=9999, filter=f, queries=q)
-                            for pub in res:
-                                cache.append(pub)
-                            with open(fn,"w") as i:
-                                i.write(json.dumps(cache, indent=4))
-                            if os.path.exists(fn) and os.stat(fn).st_size > 19:
-                                succeeded = True
-                    except:
-                        PrintException()
-
+                #break
                 line_count += 1
 
-        print("Processed {} lines.".format(line_count - 1))
         print(f"Found {result_count} results.")
-        with open('counts.csv', 'w') as file:
-            writer = csv.writer(file)
-            for row in payload:
-                writer.writerow(row)
-        
 
         with open('papers-livestock.csv', 'w') as file:
             writer = csv.writer(file)

@@ -27,6 +27,8 @@ share/python-wheels/
 MANIFEST
 
 # bulk files
+*.csv
+*.ods
 pdfs/
 json/
 grobid/

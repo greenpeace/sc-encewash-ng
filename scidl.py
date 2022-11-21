@@ -5,7 +5,7 @@ import csv, os
 
 config = { 'base_url': 'https://sci-hub.se', 'retries': 5, 'use_proxy': False }
 failed = []
-with open("papers-livestock.csv") as csv_file:
+with open("misc/papers.csv") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=',')
     for row in csv_reader:
         if row[0] != "DOI": 
@@ -30,6 +30,7 @@ with open("papers-livestock.csv") as csv_file:
                         })
             else:
                 print(f"{Fore.CYAN}{fn}{Style.RESET_ALL}")
+
 print(len(failed))
 
 

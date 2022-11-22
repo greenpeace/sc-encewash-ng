@@ -5,6 +5,5 @@ rich
 appdirs
 crossref-commons
 sci-dl
-crossrefapi
 colorama
 
